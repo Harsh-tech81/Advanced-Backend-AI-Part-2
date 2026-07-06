@@ -1,6 +1,8 @@
 import express from "express";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq"
 
 dotenv.config();
 const PORT = process.env.PORT || 3000;
@@ -11,7 +13,6 @@ app.use(express.json());
 // const ai = new GoogleGenAI({
 //   apiKey: process.env.GEMINI_API_KEY,
 // });
-
 
 // app.post("/ai", async (req, res) => {
 //   const { prompt } = req.body;
@@ -35,16 +36,28 @@ app.use(express.json());
 //   return res.status(200).json({ "AI_Response : ": response.text });
 // });
 
+// With LangChain
+const llm = new ChatGroq({
+  model: "llama-3.3-70b-versatile",
+  temperature: 0.7,
+   maxTokens: 100,
+    maxRetries: 2,
+});
 
-
-
-
-
-
-
-
-
-
+app.post("/ai", async (req, res) => {
+  const { prompt } = req.body;
+  const response = await llm.invoke([
+    {
+        role:"system",
+        content:"You are an AI Assistant and your Name is Jarvis. If you don't know the answer to a question, please respond with 'I don't know'."
+    },
+    {
+        role:"human",
+        content:prompt
+    }
+  ]);
+  return res.status(200).json({ AI_Response: response.content });
+});
 
 app.get("/", (req, res) => {
   res.send("Learn LLMs");
