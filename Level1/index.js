@@ -9,6 +9,7 @@ import {
   START,
   END,
   MessagesAnnotation,
+  MemorySaver,
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { TavilySearch } from "@langchain/tavily";
@@ -46,11 +47,13 @@ app.use(express.json());
 // });
 
 const tool = new TavilySearch({
-  maxResults:5,
+  maxResults: 5,
   topic: "general",
 });
 const tools = [tool];
 const toolNode = new ToolNode(tools);
+
+const checkpointer = new MemorySaver();
 
 // With LangChain
 const llm = new ChatGroq({
@@ -86,8 +89,7 @@ const callLLM = async (state) => {
   const response = await llm.invoke([
     {
       role: "system",
-      content:
-        "You are an AI Assistant and your Name is Jarvis. If you don't know the answer to a question, then call a relevent tool.",
+      content: `You are Jarvis, an AI Assistant. Use Conversation memory first .Only use tools when the answer requires external real-time information like:weather,news,web search,stock price,flight status, etc. Do not call tools for simple conversations,memory-based questions,greeting,or personal context.`,
     },
     ...state.messages,
   ]);
@@ -108,13 +110,18 @@ const graph = new StateGraph(MessagesAnnotation)
   .addEdge("__start__", "agent")
   .addEdge("tools", "agent")
   .addConditionalEdges("agent", shouldContinue)
-  .compile();
+  .compile({ checkpointer: checkpointer });
 
 app.post("/ai", async (req, res) => {
   const { prompt } = req.body;
-  const response = await graph.invoke({
-    messages: [{ role: "user", content: prompt }],
-  });
+  const response = await graph.invoke(
+    {
+      messages: [{ role: "user", content: prompt }],
+    },
+    {
+      configurable: { thread_id: "user123" },
+    },
+  );
   console.log("response:", response);
   return res
     .status(200)
