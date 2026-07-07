@@ -2,7 +2,9 @@ import express from "express";
 import dotenv from "dotenv";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatGroq } from "@langchain/groq";
-
+import { PDFParse } from "pdf-parse";
+import fs from "fs";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 dotenv.config();
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -15,18 +17,31 @@ const llm = new ChatGroq({
   maxRetries: 2,
 });
 
+const upload = async () => {
+  const pdfPath = "./knowledge.pdf";
+  const buffer = fs.readFileSync(pdfPath);
+  const pdfResult = new PDFParse({ data: buffer });
+  const result = await pdfResult.getText();
+  const text = result.text;
+  const spilitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+  chunkOverlap: 200,
+  });
+ const docs= await spilitter.createDocuments([text])
+// console.log(docs);
+
+  
+};
+upload();
+
 app.get("/", (req, res) => {
   res.send("Learn RAG");
 });
 
 app.post("/ai", async (req, res) => {
   const { prompt } = req.body;
-  const response = await llm.invoke(
-   prompt
-  )
-  return res
-    .status(200)
-    .json({ "ai :": response.content });
+  const response = await llm.invoke(prompt);
+  return res.status(200).json({ "ai :": response.content });
 });
 
 app.listen(PORT, () => {
