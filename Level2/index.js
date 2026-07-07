@@ -5,6 +5,10 @@ import { ChatGroq } from "@langchain/groq";
 import { PDFParse } from "pdf-parse";
 import fs from "fs";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { TaskType } from "@google/generative-ai";
+import { QdrantVectorStore } from "@langchain/qdrant";
+
 dotenv.config();
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -17,6 +21,17 @@ const llm = new ChatGroq({
   maxRetries: 2,
 });
 
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  model: "gemini-embedding-001", // 768 dimensions
+  taskType: TaskType.RETRIEVAL_DOCUMENT,
+  title: "Document title",
+});
+
+const vectorStore = await QdrantVectorStore.fromExistingCollection(embeddings, {
+  url: process.env.QDRANT_URL,
+  collectionName: "grocery-Store",
+});
+
 const upload = async () => {
   const pdfPath = "./knowledge.pdf";
   const buffer = fs.readFileSync(pdfPath);
@@ -25,13 +40,12 @@ const upload = async () => {
   const text = result.text;
   const spilitter = new RecursiveCharacterTextSplitter({
     chunkSize: 1000,
-  chunkOverlap: 200,
+    chunkOverlap: 200,
   });
- const docs= await spilitter.createDocuments([text])
-// console.log(docs);
-
-  
+  const docs = await spilitter.createDocuments([text]);
+  await vectorStore.addDocuments(docs);
 };
+
 upload();
 
 app.get("/", (req, res) => {
