@@ -8,6 +8,8 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
 import { QdrantVectorStore } from "@langchain/qdrant";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+
 
 dotenv.config();
 const PORT = process.env.PORT || 3000;
@@ -46,16 +48,24 @@ const upload = async () => {
   await vectorStore.addDocuments(docs);
 };
 
-upload();
-
 app.get("/", (req, res) => {
   res.send("Learn RAG");
 });
 
 app.post("/ai", async (req, res) => {
   const { prompt } = req.body;
-  const response = await llm.invoke(prompt);
-  return res.status(200).json({ "ai :": response.content });
+
+  const docs = await vectorStore.similaritySearch(prompt, 5);
+  // console.log(docs);
+  const context = docs.map((doc) => doc.pageContent).join("\n");
+  const response = await llm.invoke([
+    new SystemMessage(
+      `You are a RAG AI Assistant. STRICT RULES : - Answer ONLY from the Context - Do not use outside knowledge - If answer not found say : " I don't know from the uploaded PDF. " Context: ${context}`
+    )
+    ,
+    new HumanMessage(prompt),
+  ]);
+  return res.status(200).json({ AI_Response: response.content });
 });
 
 app.listen(PORT, () => {
